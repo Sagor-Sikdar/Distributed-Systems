@@ -6,9 +6,11 @@ abstract service Raft {
                     uint64_t ret1,
                     bool_t vote_granted);
 
-  defer AppendEntries(MarshallDeputy cmd |
+  defer AppendEntries(uint64_t candidateId,
+                      uint64_t candidateTerm,
+                      MarshallDeputy cmd |
+                      uint64_t retTerm,
                       bool_t followerAppendOK);
-  defer HelloRpc(string req | string res);                       
-
+  defer HelloRpc(string req | string res);  
 }
 

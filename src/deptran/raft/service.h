@@ -22,24 +22,29 @@ class RaftServiceImpl : public RaftService {
   RaftServiceImpl(TxLogServer* sched);
 
   RpcHandler(RequestVote, 4,
-             const uint64_t&, arg1,
-             const uint64_t&, arg2,
+             const uint64_t&, candidateId,
+             const uint64_t&, candidateTerm,
              uint64_t*, ret1,
              bool_t*, vote_granted) {
     *ret1 = 0;
     *vote_granted = false;
+    svr_->currentRole = FOLLOWER;
   }
 
-  RpcHandler(AppendEntries, 2,
-             const MarshallDeputy&, cmd,
-             bool_t*, followerAppendOK) {
-    *followerAppendOK = false;
+  RpcHandler(AppendEntries, 5,
+            const uint64_t&, candidateId,
+            const uint64_t&, candidateTerm,
+            const MarshallDeputy&, cmd,
+            uint64_t*, retTerm,
+            bool_t*, isAlive) {
+    *retTerm = 0;
+    *isAlive = false;
+    svr_->currentRole = FOLLOWER;
   }
 
   RpcHandler(HelloRpc, 2, const string&, req, string*, res) {
     *res = "error"; 
   };
-
 };
 
 } // namespace janus
