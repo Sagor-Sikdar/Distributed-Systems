@@ -9,12 +9,36 @@
 namespace janus {
 
 #define HEARTBEAT_INTERVAL 100000
+//#define ELECTIONTIMEOUT 5000000
+
+enum State { FOLLOWER, CANDIDATE, LEADER };
 
 class RaftServer : public TxLogServer {
  public:
   /* Your data here */
+  uint64_t currentTerm = 0;
+  uint64_t votedFor = -1;
+  std::vector<std::pair<int, int>> log;
+  uint64_t commitIndex;
+  std::chrono::time_point<std::chrono::steady_clock> t_start = std::chrono::steady_clock::now();
+  std::chrono::time_point<std::chrono::steady_clock> election_start_time = std::chrono::steady_clock::now();
+  int electionTimeout;
+
+  State currentRole;
+  uint64_t currentLeader;
+  std::unordered_set<int> votesReceived;
+  std::unordered_map<int, int> sentLength;
+  std::unordered_map<int, int> ackLength;
+  std::recursive_mutex m;
 
   /* Your functions here */
+  void Init();
+  void LeaderElection();
+  void SendHeartBeat();
+  void ReceiveHeartBeat();
+  void ElectionTimer();
+  void Simulation();
+
 
   /* do not modify this class below here */
 
@@ -33,6 +57,7 @@ class RaftServer : public TxLogServer {
   void SyncRpcExample();
   void Disconnect(const bool disconnect = true);
   void Reconnect() {
+    Log_info("ServerID: %d is reconnected.", site_id_);
     Disconnect(false);
   }
   bool IsDisconnected();
