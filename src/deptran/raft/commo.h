@@ -19,6 +19,8 @@ class RaftCommo : public Communicator {
                        siteid_t site_id,
                        uint64_t candidateId,
                        uint64_t candidateTerm, 
+                       uint64_t candidateLogTerm,
+                       uint64_t candidateLogLength,  
                        uint64_t *ret, 
                        bool_t *vote_granted);
 

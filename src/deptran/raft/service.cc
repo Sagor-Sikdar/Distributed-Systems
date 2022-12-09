@@ -15,15 +15,24 @@ RaftServiceImpl::RaftServiceImpl(TxLogServer *sched)
 
 void RaftServiceImpl::HandleRequestVote(const uint64_t& candidateId,
                                         const uint64_t& candidateTerm,
+                                        const uint64_t& candidateLogTerm,
+                                        const uint64_t& candidateLogLength,
                                         uint64_t *retTerm,
                                         bool_t *vote_granted,
                                         rrr::DeferredReply* defer) {
-  /* Your code here */
-  
   svr_->m.lock();
   // Log_info("[HandleRequestVote] received rpc: (cId, rId, cterm, svrTerm, votedFor) --> (%d, %d, %d, %d, %d)", candidateId, svr_->site_id_, candidateTerm, svr_->currentTerm, svr_->votedFor);
   bool validTerm = (candidateTerm > svr_->currentTerm) || (candidateTerm == svr_->currentTerm && (svr_->votedFor == -1 || svr_->votedFor == candidateId));
-  if (validTerm) {
+  
+  bool isUpdatedLog = (svr_->logs.size() == 0);
+  if (isUpdatedLog == false) {
+    int logSize = svr_->logs.size();
+    int lastTerm = svr_->logs[logSize - 1].term;
+
+    isUpdatedLog = (candidateLogTerm > lastTerm) || (candidateLogTerm == lastTerm && candidateLogLength >= logSize); 
+  }  
+  
+  if (validTerm && isUpdatedLog) {
     svr_->currentTerm = candidateTerm;
     svr_->currentRole = FOLLOWER;
     svr_->votedFor = candidateId;

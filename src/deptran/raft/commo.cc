@@ -16,12 +16,14 @@ RaftCommo::RaftCommo(PollMgr* poll) : Communicator(poll) {
 
 shared_ptr<IntEvent> 
 RaftCommo::SendRequestVote(parid_t par_id,
-                                siteid_t site_id,
-                                uint64_t candidateId,
-                                uint64_t candidateTerm, 
-                                uint64_t *ret, 
-                                bool_t *vote_granted) {
-  /*
+                            siteid_t site_id,
+                            uint64_t candidateId,
+                            uint64_t candidateTerm, 
+                            uint64_t candidateLogTerm,
+                            uint64_t candidateLogLength,  
+                            uint64_t *ret, 
+                            bool_t *vote_granted) {
+    /*
    * Example code for sending a single RPC to server at site_id
    * You may modify and use this function or just use it as a reference
   */
@@ -46,7 +48,7 @@ RaftCommo::SendRequestVote(parid_t par_id,
       };
       /* Always use Call_Async(proxy, RPC name, RPC args..., fuattr)
       * to asynchronously invoke RPCs */
-      Call_Async(proxy, RequestVote, candidateId, candidateTerm, fuattr);
+      Call_Async(proxy, RequestVote, candidateId, candidateTerm, candidateLogTerm, candidateLogLength, fuattr);
     }
   }
   return ev;

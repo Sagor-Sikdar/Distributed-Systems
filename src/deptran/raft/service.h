@@ -21,9 +21,11 @@ class RaftServiceImpl : public RaftService {
   RaftServer* svr_;
   RaftServiceImpl(TxLogServer* sched);
 
-  RpcHandler(RequestVote, 4,
+  RpcHandler(RequestVote, 6,
              const uint64_t&, candidateId,
              const uint64_t&, candidateTerm,
+             const uint64_t&, candidateLogTerm,
+             const uint64_t&, candidateLogLength,
              uint64_t*, ret1,
              bool_t*, vote_granted) {
     *ret1 = 0;
