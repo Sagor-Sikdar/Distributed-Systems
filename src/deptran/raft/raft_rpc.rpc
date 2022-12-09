@@ -11,6 +11,13 @@ abstract service Raft {
                       MarshallDeputy cmd |
                       uint64_t retTerm,
                       bool_t followerAppendOK);
+
+  defer HeartBeat(uint64_t candidateId,
+                    uint64_t candidateTerm,
+                    MarshallDeputy cmd |
+                    uint64_t retTerm,
+                    bool_t isAlive);
+            
   defer HelloRpc(string req | string res);  
 }
 

@@ -8,10 +8,12 @@
 
 namespace janus {
 
-#define HEARTBEAT_INTERVAL 100000
-//#define ELECTIONTIMEOUT 5000000
-
 enum State { FOLLOWER, CANDIDATE, LEADER };
+
+struct LogEntry {
+  shared_ptr<Marshallable> cmd;
+  int term;
+};
 
 class RaftServer : public TxLogServer {
  public:
