@@ -29,7 +29,6 @@ void RaftServer::Setup() {
      framework, this function could be called after a RPC handler is triggered. 
      Your code should be aware of that. This function is always called in the 
      same OS thread as the RPC handlers. */
-    // Coroutine::Sleep(250000);
     Log_info("ServerId: %d has started", site_id_);
     Simulation();
 }
@@ -38,6 +37,7 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
                        uint64_t *index,
                        uint64_t *term) {
   /* Your code here. This function can be called from another OS thread. */
+  Log_info("Start For Server %d is called", site_id_);
   *index = 0;
   *term = 0;
   return false;
@@ -48,7 +48,6 @@ void RaftServer::GetState(bool *is_leader, uint64_t *term) {
   m.lock();
   *is_leader = (currentRole == LEADER && !IsDisconnected());
   *term = currentTerm;
-  // Log_info("[GetState] ServerID: %d, isLeader: %d, Term: %d", site_id_, *is_leader, *term);
   m.unlock();
 }
 
@@ -68,9 +67,9 @@ void RaftServer::SyncRpcExample() {
 
     event->Wait(1000000); //timeout after 1000000us=1s
     if (event->status_ == Event::TIMEOUT) {
-      Log_info("timeout happens");
+      // Log_info("timeout happens");
     } else {
-      Log_info("[SyncRpcExample] rpc response is: %d", ret); 
+      // Log_info("[SyncRpcExample] rpc response is: %d", ret); 
     }
   });
 }
@@ -136,7 +135,9 @@ void RaftServer::SendHeartBeat() {
           cmdptr->cmd_ = vpd_p;
           auto cmdptr_m = dynamic_pointer_cast<Marshallable>(cmdptr);
 
-          auto event = commo()->SendAppendEntries(0, svrId, site_id_, currentTerm, cmdptr_m, &retTerm, &isAlive);
+          // auto event = commo()->SendAppendEntries(0, svrId, site_id_, currentTerm, cmdptr_m, &retTerm, &isAlive);
+          auto event = commo()->SendHeartBeat(0, svrId, site_id_, currentTerm, cmdptr_m, &retTerm, &isAlive);
+
           event->Wait(80000);
 
           if (event->status_ != Event::TIMEOUT) {
@@ -145,7 +146,7 @@ void RaftServer::SendHeartBeat() {
               currentTerm = retTerm;
               currentRole = FOLLOWER;
               votedFor = -1;
-              Log_info("Leader %d has now become a follower", site_id_);
+              // Log_info("Leader %d has now become a follower", site_id_);
             }
             m.unlock();
           }
@@ -168,11 +169,11 @@ void RaftServer:: ReceiveHeartBeat() {
       Coroutine::Sleep(random_timeout * 100);
     }
 
-    Log_info("HeartBeat Timeout %d for server: %d", random_timeout, site_id_);
+    // Log_info("HeartBeat Timeout %d for server: %d", random_timeout, site_id_);
 
     m.lock();
     if (currentRole == FOLLOWER && !IsDisconnected()){
-      Log_info("Server %d is promoted to a candidate, term: %d", site_id_, currentTerm);
+      // Log_info("Server %d is promoted to a candidate, term: %d", site_id_, currentTerm);
       currentTerm += 1;
       currentRole = CANDIDATE;
       votedFor = site_id_;
@@ -203,20 +204,20 @@ void RaftServer::LeaderElection() {
       uint64_t retTerm, cTerm = currentTerm, candidateId = site_id_, svrId = serverId;
       bool_t vote_granted;
 
-      Log_info("[SendRequestVote] (cId, svrId, term) = (%d, %d, %d)\n", candidateId, serverId, currentTerm);
+      // Log_info("[SendRequestVote] (cId, svrId, term) = (%d, %d, %d)\n", candidateId, serverId, currentTerm);
       
       auto event = commo()->SendRequestVote(0, svrId, candidateId, cTerm, &retTerm, &vote_granted);   
       event->Wait(1000000 + site_id_ * 300000); //timeout after 1000000us=1s
       
       if (event->status_ != Event::TIMEOUT) {          
         m.lock();
-        Log_info("[ReceiveRequestVote : (cId, sId, rTerm, vote_granted) -> (%d, %d, %d, %d)]", site_id_, svrId, retTerm, vote_granted); 
+        // Log_info("[ReceiveRequestVote : (cId, sId, rTerm, vote_granted) -> (%d, %d, %d, %d)]", site_id_, svrId, retTerm, vote_granted); 
         if (currentRole == CANDIDATE && vote_granted && retTerm == currentTerm) {
           votesReceived.insert(svrId);
-          Log_info("ServerId: %d, votesReceived: %d", site_id_, votesReceived.size());
+          // Log_info("ServerId: %d, votesReceived: %d", site_id_, votesReceived.size());
 
           if (votesReceived.size() == 3) {
-            Log_info ("%d won the election, term: %d", site_id_, currentTerm);
+            // Log_info ("%d won the election, term: %d", site_id_, currentTerm);
             currentLeader = site_id_;
             currentRole = LEADER;
             electionTimeout = 0;
@@ -226,13 +227,13 @@ void RaftServer::LeaderElection() {
           currentRole = FOLLOWER;
           electionTimeout = 0;
           votedFor = -1;
-          Log_info("[retTerm > currentTerm] for server: %d", site_id_);
+          // Log_info("[retTerm > currentTerm] for server: %d", site_id_);
         } else{
-          Log_info("[vote not granted] for server: %d", site_id_);
+          // Log_info("[vote not granted] for server: %d", site_id_);
         }
         m.unlock();
       } else {
-          Log_info("SendRequestVote timeout happens for %d", site_id_);
+          // Log_info("SendRequestVote timeout happens for %d", site_id_);
       }  
     };
     Coroutine::CreateRun(callback);
@@ -254,11 +255,11 @@ void RaftServer::ElectionTimer() {
       Coroutine::Sleep(electionTimeout * 50);
     }
 
-    Log_info("Election Timeout %d for server: %d", electionTimeout, site_id_);
+    // Log_info("Election Timeout %d for server: %d", electionTimeout, site_id_);
 
     m.lock();
     if (currentRole == CANDIDATE){
-      Log_info("Server %d is still the candidate", site_id_);
+      // Log_info("Server %d is still the candidate", site_id_);
       currentTerm += 1;
     }
     m.unlock();

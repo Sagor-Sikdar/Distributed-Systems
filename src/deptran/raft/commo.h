@@ -31,6 +31,15 @@ class RaftCommo : public Communicator {
                         uint64_t *ret, 
                         bool_t *followerAppendOK);
 
+  shared_ptr<IntEvent>
+  SendHeartBeat(parid_t par_id,
+                        siteid_t site_id,
+                        uint64_t candidateId,
+                        uint64_t candidateTerm, 
+                        shared_ptr<Marshallable> cmd,
+                        uint64_t *ret, 
+                        bool_t *followerAppendOK);
+
   shared_ptr<IntEvent> 
   SendString(parid_t par_id, siteid_t site_id, const string& msg, string* res);
 

@@ -79,7 +79,42 @@ RaftCommo::SendAppendEntries(parid_t par_id,
       };
       /* wrap Marshallable in a MarshallDeputy to send over RPC */
       MarshallDeputy md(cmd);
-      Call_Async(proxy, AppendEntries, candidateId, candidateTerm, md, fuattr);
+      // Call_Async(proxy, AppendEntries, candidateId, candidateTerm, md, fuattr);
+      Call_Async(proxy, HeartBeat, candidateId, candidateTerm, md, fuattr);
+    }
+  }
+  return ev;
+}
+
+
+shared_ptr<IntEvent> 
+RaftCommo::SendHeartBeat(parid_t par_id,
+                              siteid_t site_id,
+                              uint64_t candidateId,
+                              uint64_t candidateTerm, 
+                              shared_ptr<Marshallable> cmd,
+                              uint64_t *ret, 
+                              bool_t *isSuccess) {
+  /*
+   * More example code for sending a single RPC to server at site_id
+   * You may modify and use this function or just use it as a reference
+   */
+  auto proxies = rpc_par_proxies_[par_id];
+  auto ev = Reactor::CreateSpEvent<IntEvent>();
+  for (auto& p : proxies) {
+    if (p.first == site_id) {
+      RaftProxy *proxy = (RaftProxy*) p.second;
+      FutureAttr fuattr;
+      fuattr.callback = [ret, isSuccess, ev](Future* fu) {
+        // bool_t followerAppendOK;
+        fu->get_reply() >> *ret;
+        fu->get_reply() >> *isSuccess;
+        ev->Set(1);
+      };
+      /* wrap Marshallable in a MarshallDeputy to send over RPC */
+      MarshallDeputy md(cmd);
+      // Call_Async(proxy, AppendEntries, candidateId, candidateTerm, md, fuattr);
+      Call_Async(proxy, HeartBeat, candidateId, candidateTerm, md, fuattr);
     }
   }
   return ev;
