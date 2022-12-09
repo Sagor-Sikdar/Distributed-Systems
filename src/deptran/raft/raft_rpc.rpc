@@ -2,7 +2,9 @@ namespace janus;
 
 abstract service Raft {
   defer RequestVote(uint64_t arg1,
-                    uint64_t arg2 |
+                    uint64_t arg2,
+                    uint64_t arg3,
+                    uint64_t arg4 |
                     uint64_t ret1,
                     bool_t vote_granted);
 

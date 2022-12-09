@@ -12,7 +12,12 @@ enum State { FOLLOWER, CANDIDATE, LEADER };
 
 struct LogEntry {
   shared_ptr<Marshallable> cmd;
-  int term;
+  uint64_t term;
+
+  LogEntry(shared_ptr<Marshallable> c, int t) {
+    cmd = c;
+    term = t;
+  }
 };
 
 class RaftServer : public TxLogServer {
@@ -20,7 +25,7 @@ class RaftServer : public TxLogServer {
   /* Your data here */
   uint64_t currentTerm = 0;
   uint64_t votedFor = -1;
-  std::vector<std::pair<int, int>> log;
+  std::vector<LogEntry> logs;
   uint64_t commitIndex;
   std::chrono::time_point<std::chrono::steady_clock> t_start = std::chrono::steady_clock::now();
   std::chrono::time_point<std::chrono::steady_clock> election_start_time = std::chrono::steady_clock::now();
@@ -29,8 +34,8 @@ class RaftServer : public TxLogServer {
   State currentRole;
   uint64_t currentLeader;
   std::unordered_set<int> votesReceived;
-  std::unordered_map<int, int> sentLength;
-  std::unordered_map<int, int> ackLength;
+  std::unordered_map<int, int> nextIndex;
+  std::unordered_map<int, int> matchIndex;
   std::recursive_mutex m;
 
   /* Your functions here */

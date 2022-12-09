@@ -60,16 +60,14 @@ void RaftServer::SyncRpcExample() {
     string res;
     uint64_t ret;
     bool_t visited;
-    // auto event = commo()->SendString(0, /* partition id is always 0 for lab1 */
-    //                                  2, "example_msg", &res);
-
-    auto event = commo()->SendRequestVote(0, 2, 10, 20, &ret, &visited);
+    auto event = commo()->SendString(0, /* partition id is always 0 for lab1 */
+                                     2, "example_msg", &res);
 
     event->Wait(1000000); //timeout after 1000000us=1s
     if (event->status_ == Event::TIMEOUT) {
-      // Log_info("timeout happens");
+      Log_info("timeout happens");
     } else {
-      // Log_info("[SyncRpcExample] rpc response is: %d", ret); 
+      Log_info("[SyncRpcExample] rpc response is: %d", ret); 
     }
   });
 }
@@ -205,8 +203,9 @@ void RaftServer::LeaderElection() {
       bool_t vote_granted;
 
       // Log_info("[SendRequestVote] (cId, svrId, term) = (%d, %d, %d)\n", candidateId, serverId, currentTerm);
-      
-      auto event = commo()->SendRequestVote(0, svrId, candidateId, cTerm, &retTerm, &vote_granted);   
+      uint64_t logLength = logs.size();
+      uint64_t logTerm = logLength > 0 ? logs[logLength - 1].term : 0;  
+      auto event = commo()->SendRequestVote(0, svrId, candidateId, cTerm, logTerm, logLength, &retTerm, &vote_granted);   
       event->Wait(1000000 + site_id_ * 300000); //timeout after 1000000us=1s
       
       if (event->status_ != Event::TIMEOUT) {          
