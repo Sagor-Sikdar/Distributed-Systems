@@ -10,42 +10,36 @@ namespace janus {
 
 enum State { FOLLOWER, CANDIDATE, LEADER };
 
-struct LogEntry {
-  shared_ptr<Marshallable> cmd;
-  uint64_t term;
-
-  LogEntry(shared_ptr<Marshallable> c, int t) {
-    cmd = c;
-    term = t;
-  }
-};
-
 class RaftServer : public TxLogServer {
  public:
   /* Your data here */
   uint64_t currentTerm = 0;
   uint64_t votedFor = -1;
-  std::vector<LogEntry> logs;
+  std::vector<shared_ptr<Marshallable>> commands;
+  std::vector<uint64_t> terms;
+
   uint64_t commitIndex;
   std::chrono::time_point<std::chrono::steady_clock> t_start = std::chrono::steady_clock::now();
   std::chrono::time_point<std::chrono::steady_clock> election_start_time = std::chrono::steady_clock::now();
   int electionTimeout;
+  uint64_t startIndex = -1;
 
   State currentRole;
   uint64_t currentLeader;
-  std::unordered_set<int> votesReceived;
-  std::unordered_map<int, int> nextIndex;
-  std::unordered_map<int, int> matchIndex;
+  std::unordered_set<uint64_t> votesReceived;
+  std::unordered_map<uint64_t, uint64_t> nextIndex;
+  std::unordered_map<uint64_t, uint64_t> matchIndex;
+  std::vector<uint64_t> ackReceived;
   std::recursive_mutex m;
 
   /* Your functions here */
   void Init();
   void LeaderElection();
   void SendHeartBeat();
-  void ReceiveHeartBeat();
+  void HeartBeatTimer();
   void ElectionTimer();
   void Simulation();
-
+  void ReplicateLog();
 
   /* do not modify this class below here */
 
