@@ -22,25 +22,26 @@ void RaftServiceImpl::HandleRequestVote(const uint64_t& candidateId,
                                         rrr::DeferredReply* defer) {
   svr_->m.lock();
   // Log_info("[HandleRequestVote] received rpc: (cId, rId, cterm, svrTerm, votedFor) --> (%d, %d, %d, %d, %d)", candidateId, svr_->site_id_, candidateTerm, svr_->currentTerm, svr_->votedFor);
-  bool validTerm = (candidateTerm > svr_->currentTerm) || (candidateTerm == svr_->currentTerm && (svr_->votedFor == -1 || svr_->votedFor == candidateId));
   
-  bool isUpdatedLog = (svr_->logs.size() == 0);
-  if (isUpdatedLog == false) {
-    int logSize = svr_->logs.size();
-    int lastTerm = svr_->logs[logSize - 1].term;
-
-    isUpdatedLog = (candidateLogTerm > lastTerm) || (candidateLogTerm == lastTerm && candidateLogLength >= logSize); 
+  bool validTerm = (candidateTerm > svr_->currentTerm) || (candidateTerm == svr_->currentTerm && (svr_->votedFor == -1 || svr_->votedFor == candidateId));
+  bool UpdatedLog = true;;
+  if (svr_->terms.size() > 0) {
+    int logSize = svr_->terms.size();
+    int lastTerm = svr_->terms[logSize - 1];
+    UpdatedLog = (candidateLogTerm > lastTerm) || (candidateLogTerm == lastTerm && candidateLogLength >= logSize); 
   }  
   
-  if (validTerm && isUpdatedLog) {
-    svr_->currentTerm = candidateTerm;
+  if (validTerm && UpdatedLog) {
+    *retTerm = svr_->currentTerm = candidateTerm;
     svr_->currentRole = FOLLOWER;
     svr_->votedFor = candidateId;
-    // Log_info("[Service.cc] %d is now a follower", svr_->site_id_);
-  }   
-  *retTerm = svr_->currentTerm;
-  *vote_granted = validTerm;
-  svr_->t_start = std::chrono::steady_clock::now();
+    *vote_granted = true;
+    svr_->t_start = std::chrono::steady_clock::now();
+  }  else {
+    *retTerm = svr_->currentTerm;
+    *vote_granted = false;
+  }
+  
   // Log_info("[(Done)HandleRequestVote: (cID, rID, rTerm, vote_granted, votedFor) --> (%d, %d, %d, %d, %d --> %d)\n", candidateId, svr_->site_id_,  *retTerm, *vote_granted, svr_->site_id_, svr_->votedFor);
   svr_->m.unlock();
   defer->reply();
@@ -48,47 +49,83 @@ void RaftServiceImpl::HandleRequestVote(const uint64_t& candidateId,
 
 void RaftServiceImpl::HandleAppendEntries(const uint64_t& leaderId,
                                           const uint64_t& leaderTerm,
-                                          const MarshallDeputy& md_cmd,
+                                          const uint64_t& prefixLogLength,
+                                          const uint64_t& prefixLogTerm,
+                                          const std::vector<MarshallDeputy>& cmds,
+                                          const std::vector<uint64_t>& terms,
+                                          const uint64_t& leaderCommitIndex,
                                           uint64_t *retTerm,
-                                          bool_t *isAlive,
+                                          uint64_t *matchedIndex,
+                                          bool_t *success,
                                           rrr::DeferredReply* defer) {
   /* Your code here */
-  std::shared_ptr<Marshallable> cmd = const_cast<MarshallDeputy&>(md_cmd).sp_data_;
+  // std::shared_ptr<Marshallable> cmd = const_cast<MarshallDeputy&>(md_cmd).sp_data_;
   svr_->m.lock();
-  if (leaderTerm >= svr_->currentTerm) {
-    if (leaderTerm > svr_->currentTerm) svr_->votedFor = -1;
-    *isAlive = true;
-    svr_->currentTerm = leaderTerm;
-    svr_->currentLeader = leaderId;
-    svr_->t_start = std::chrono::steady_clock::now();
-    // Log_info("Heart Beat Received at %d from %d",svr_->site_id_, leaderId);
+  //Log_info("HandleAppendEntries. ServerID: %d", svr_->site_id_);
+  if (svr_->currentTerm > leaderTerm
+      || prefixLogLength > svr_->commands.size()
+      || (prefixLogLength > 0 && prefixLogTerm != svr_->terms[prefixLogLength - 1])) {
+    *retTerm = svr_->currentTerm;
+    *matchedIndex = 0;
+    *success = false;
+  } else {
+      if (svr_->currentTerm < leaderTerm) {
+        svr_->currentTerm = leaderTerm;
+        svr_->currentRole = FOLLOWER;
+        svr_->votedFor = -1;
+      }
+
+      *retTerm = svr_->currentTerm;
+      *matchedIndex = prefixLogLength + cmds.size();
+      *success = true;
+
+      //Log Debugging
+      for (int p = 0; p < terms.size(); p++) cout << terms[p] << " ";
+      cout << endl;
+
+      while(svr_->commands.size() > prefixLogLength) {
+        svr_->commands.pop_back();
+        svr_->terms.pop_back();
+      }
+
+      for (int i = 0; i < terms.size(); i++) {
+        std::shared_ptr<Marshallable> cmd = const_cast<MarshallDeputy&>(cmds[i]).sp_data_;
+        svr_->commands.push_back(cmd);
+        svr_->terms.push_back(terms[i]);
+      }
+
+      if (leaderCommitIndex > svr_->commitIndex) {
+        // Log_info("leaderCommitIndex > svr_->commitIndex for serverId: %d", svr_->site_id_);
+        Log_info("LeaderCommitLength: %d, commitIndex: %d, command length: %d", leaderCommitIndex, svr_->commitIndex, svr_->commands.size());
+        for (int i = svr_->commitIndex; i < leaderCommitIndex; i++) {
+          svr_->app_next_(*svr_->commands[i]);
+        }
+
+        svr_->commitIndex = leaderCommitIndex;
+      }
   }
-  else {
-    *isAlive = false;
-  }
-  *retTerm = svr_->currentTerm;
+  //Log_info("HandleAppendEntries Done. ServerID: %d", svr_->site_id_);
   svr_->m.unlock();
   defer->reply();
 }
 
 void RaftServiceImpl::HandleHeartBeat(const uint64_t& leaderId,
                                           const uint64_t& leaderTerm,
-                                          const MarshallDeputy& md_cmd,
                                           uint64_t *retTerm,
                                           bool_t *isAlive,
                                           rrr::DeferredReply* defer) {
-  /* Your code here */
-  std::shared_ptr<Marshallable> cmd = const_cast<MarshallDeputy&>(md_cmd).sp_data_;
+  // std::shared_ptr<Marshallable> cmd = const_cast<MarshallDeputy&>(md_cmd).sp_data_;
   svr_->m.lock();
+  // Log_info("Handle HeartBeat.. Lid: %d, LeaderTerm: %d, sId: %d, sTerm: %d", leaderTerm, leaderId, svr_->site_id_, svr_->currentTerm);
   if (leaderTerm >= svr_->currentTerm) {
     if (leaderTerm > svr_->currentTerm) svr_->votedFor = -1;
-    *isAlive = true;
+
     svr_->currentTerm = leaderTerm;
     svr_->currentLeader = leaderId;
+    svr_->currentRole = FOLLOWER;
+    *isAlive = true;
     svr_->t_start = std::chrono::steady_clock::now();
-    // Log_info("Heart Beat Received at %d from %d",svr_->site_id_, leaderId);
-  }
-  else {
+  } else {
     *isAlive = false;
   }
   *retTerm = svr_->currentTerm;

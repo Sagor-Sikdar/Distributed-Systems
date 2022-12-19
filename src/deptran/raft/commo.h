@@ -16,31 +16,35 @@ class RaftCommo : public Communicator {
 
   shared_ptr<IntEvent> 
   SendRequestVote(parid_t par_id,
-                       siteid_t site_id,
-                       uint64_t candidateId,
-                       uint64_t candidateTerm, 
-                       uint64_t candidateLogTerm,
-                       uint64_t candidateLogLength,  
-                       uint64_t *ret, 
-                       bool_t *vote_granted);
+                  siteid_t site_id,
+                  uint64_t candidateId,
+                  uint64_t candidateTerm, 
+                  uint64_t candidateLogTerm,
+                  uint64_t candidateLogLength,  
+                  uint64_t *ret, 
+                  bool_t *vote_granted);
 
   shared_ptr<IntEvent>
   SendAppendEntries(parid_t par_id,
-                        siteid_t site_id,
-                        uint64_t candidateId,
-                        uint64_t candidateTerm, 
-                        shared_ptr<Marshallable> cmd,
-                        uint64_t *ret, 
-                        bool_t *followerAppendOK);
+                    siteid_t site_id,
+                    uint64_t leaderId,
+                    uint64_t leaderTerm, 
+                    uint64_t prefixLogIndex,
+                    uint64_t prevLogTerm,
+                    std::vector<shared_ptr<Marshallable>> cmds,
+                    std::vector<uint64_t> terms,
+                    uint64_t leaderCommitIndex,
+                    uint64_t *ret, 
+                    uint64_t *matchedIndex, 
+                    bool_t *success) ;
 
   shared_ptr<IntEvent>
   SendHeartBeat(parid_t par_id,
-                        siteid_t site_id,
-                        uint64_t candidateId,
-                        uint64_t candidateTerm, 
-                        shared_ptr<Marshallable> cmd,
-                        uint64_t *ret, 
-                        bool_t *followerAppendOK);
+                siteid_t site_id,
+                uint64_t candidateId,
+                uint64_t candidateTerm, 
+                uint64_t *ret, 
+                bool_t *isAlive);
 
   shared_ptr<IntEvent> 
   SendString(parid_t par_id, siteid_t site_id, const string& msg, string* res);

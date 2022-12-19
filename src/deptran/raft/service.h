@@ -30,29 +30,30 @@ class RaftServiceImpl : public RaftService {
              bool_t*, vote_granted) {
     *ret1 = 0;
     *vote_granted = false;
-    svr_->currentRole = FOLLOWER;
   }
 
-  RpcHandler(AppendEntries, 5,
+  RpcHandler(AppendEntries, 10,
+            const uint64_t&, leaderId,
+            const uint64_t&, leaderTerm,
+            const uint64_t&, prevLogIndex,
+            const uint64_t&, prevLogTerm,
+            const std::vector<MarshallDeputy>&, cmds,
+            const std::vector<uint64_t>&, terms,
+            const uint64_t&, leaderCommitIndex,
+            uint64_t*, retTerm,
+            uint64_t*, matchedIndex,
+            bool_t*, success) {
+    *retTerm = 0;
+    *success = false;
+  }
+
+  RpcHandler(HeartBeat, 4,
             const uint64_t&, candidateId,
             const uint64_t&, candidateTerm,
-            const MarshallDeputy&, cmd,
             uint64_t*, retTerm,
             bool_t*, isAlive) {
     *retTerm = 0;
     *isAlive = false;
-    svr_->currentRole = FOLLOWER;
-  }
-
-  RpcHandler(HeartBeat, 5,
-            const uint64_t&, candidateId,
-            const uint64_t&, candidateTerm,
-            const MarshallDeputy&, cmd,
-            uint64_t*, retTerm,
-            bool_t*, isAlive) {
-    *retTerm = 0;
-    *isAlive = false;
-    svr_->currentRole = FOLLOWER;
   }
 
   RpcHandler(HelloRpc, 2, const string&, req, string*, res) {
