@@ -75,10 +75,6 @@ void RaftServiceImpl::HandleAppendEntries(const uint64_t& leaderId,
       *matchedIndex = prefixLogLength + cmds.size();
       *success = true;
 
-      //Log Debugging
-      for (int p = 0; p < terms.size(); p++) cout << terms[p] << " ";
-      cout << endl;
-
       while(svr_->commands.size() > prefixLogLength) {
         svr_->commands.pop_back();
         svr_->terms.pop_back();
@@ -91,12 +87,9 @@ void RaftServiceImpl::HandleAppendEntries(const uint64_t& leaderId,
       }
 
       if (leaderCommitIndex > svr_->commitIndex) {
-        // Log_info("leaderCommitIndex > svr_->commitIndex for serverId: %d", svr_->site_id_);
-        Log_info("LeaderCommitLength: %d, commitIndex: %d, command length: %d", leaderCommitIndex, svr_->commitIndex, svr_->commands.size());
         for (int i = svr_->commitIndex; i < leaderCommitIndex; i++) {
           svr_->app_next_(*svr_->commands[i]);
         }
-
         svr_->commitIndex = leaderCommitIndex;
       }
   }
