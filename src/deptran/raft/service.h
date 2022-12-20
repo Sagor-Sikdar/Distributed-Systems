@@ -45,6 +45,7 @@ class RaftServiceImpl : public RaftService {
             bool_t*, success) {
     *retTerm = 0;
     *success = false;
+    *matchedIndex = 0;
   }
 
   RpcHandler(HeartBeat, 4,

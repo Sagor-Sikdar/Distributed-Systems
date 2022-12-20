@@ -29,7 +29,7 @@ class RaftServer : public TxLogServer {
   std::unordered_set<uint64_t> votesReceived;
   std::unordered_map<uint64_t, uint64_t> nextIndex;
   std::unordered_map<uint64_t, uint64_t> matchIndex;
-  std::vector<uint64_t> ackReceived;
+  // std::vector<uint64_t> ackReceived;
   std::recursive_mutex m;
 
   /* Your functions here */
