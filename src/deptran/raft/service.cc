@@ -21,7 +21,6 @@ void RaftServiceImpl::HandleRequestVote(const uint64_t& candidateId,
                                         bool_t *vote_granted,
                                         rrr::DeferredReply* defer) {
   svr_->m.lock();
-  // Log_info("[HandleRequestVote] received rpc: (cId, rId, cterm, svrTerm, votedFor) --> (%d, %d, %d, %d, %d)", candidateId, svr_->site_id_, candidateTerm, svr_->currentTerm, svr_->votedFor);
   
   bool validTerm = (candidateTerm > svr_->currentTerm) || (candidateTerm == svr_->currentTerm && (svr_->votedFor == -1 || svr_->votedFor == candidateId));
   bool UpdatedLog = true;;
@@ -42,7 +41,6 @@ void RaftServiceImpl::HandleRequestVote(const uint64_t& candidateId,
     *vote_granted = false;
   }
   
-  // Log_info("[(Done)HandleRequestVote: (cID, rID, rTerm, vote_granted, votedFor) --> (%d, %d, %d, %d, %d --> %d)\n", candidateId, svr_->site_id_,  *retTerm, *vote_granted, svr_->site_id_, svr_->votedFor);
   svr_->m.unlock();
   defer->reply();
 }
@@ -59,9 +57,7 @@ void RaftServiceImpl::HandleAppendEntries(const uint64_t& leaderId,
                                           bool_t *success,
                                           rrr::DeferredReply* defer) {
   /* Your code here */
-  // std::shared_ptr<Marshallable> cmd = const_cast<MarshallDeputy&>(md_cmd).sp_data_;
   svr_->m.lock();
-  //Log_info("HandleAppendEntries. ServerID: %d", svr_->site_id_);
   if (svr_->currentTerm > leaderTerm
       || prefixLogLength > svr_->commands.size()
       || (prefixLogLength > 0 && prefixLogTerm != svr_->terms[prefixLogLength - 1])) {
@@ -104,7 +100,6 @@ void RaftServiceImpl::HandleAppendEntries(const uint64_t& leaderId,
         svr_->commitIndex = leaderCommitIndex;
       }
   }
-  //Log_info("HandleAppendEntries Done. ServerID: %d", svr_->site_id_);
   svr_->m.unlock();
   defer->reply();
 }

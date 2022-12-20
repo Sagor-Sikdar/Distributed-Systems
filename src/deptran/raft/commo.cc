@@ -33,7 +33,9 @@ RaftCommo::SendRequestVote(parid_t par_id,
       fuattr.callback = [ret, vote_granted, ev](Future* fu) {
         fu->get_reply() >> *ret;
         fu->get_reply() >> *vote_granted;
-        ev->Set(1);
+        if(ev->status_ != Event::TIMEOUT){
+          ev->Set(1);
+        }
       };
       /* Always use Call_Async(proxy, RPC name, RPC args..., fuattr)
       * to asynchronously invoke RPCs */
@@ -67,7 +69,9 @@ RaftCommo::SendAppendEntries(parid_t par_id,
         fu->get_reply() >> *ret;
         fu->get_reply() >> *matchedIndex;
         fu->get_reply() >> *success;
-        ev->Set(1);
+        if(ev->status_ != Event::TIMEOUT){
+          ev->Set(1);
+        }
       };
       
       std::vector<MarshallDeputy> md;
@@ -97,7 +101,9 @@ RaftCommo::SendHeartBeat(parid_t par_id,
         // bool_t followerAppendOK;
         fu->get_reply() >> *ret;
         fu->get_reply() >> *isSuccess;
-        ev->Set(1);
+        if(ev->status_ != Event::TIMEOUT){
+          ev->Set(1);
+        }
       };
       /* wrap Marshallable in a MarshallDeputy to send over RPC */
       Call_Async(proxy, HeartBeat, candidateId, candidateTerm, fuattr);

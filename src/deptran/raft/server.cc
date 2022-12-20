@@ -216,7 +216,7 @@ void RaftServer::SendHeartBeat() {
         uint64_t retTerm;
         bool_t isAlive;
 
-        Log_info("[SendHeartBeat] Callback for SvrID: %d, from: %d, cTerm: %d, leader?: %d", svrId, site_id_, currentTerm, currentRole == LEADER);
+        // Log_info("[SendHeartBeat] Callback for SvrID: %d, from: %d, cTerm: %d, leader?: %d", svrId, site_id_, currentTerm, currentRole == LEADER);
 
         if ( currentRole == LEADER ) { 
           uint64_t cTerm = currentTerm;
@@ -224,7 +224,7 @@ void RaftServer::SendHeartBeat() {
           event->Wait(40000);
           if (event->status_ != Event::TIMEOUT) {
             m.lock();
-            Log_info("senderId: %d, retTerm: %d, currentTerm: %d", svrId, retTerm, currentTerm);
+            // Log_info("senderId: %d, retTerm: %d, currentTerm: %d", svrId, retTerm, currentTerm);
             if (isAlive == false && retTerm > cTerm) {
               currentTerm = retTerm;
               currentRole = FOLLOWER;
@@ -254,15 +254,15 @@ void RaftServer:: HeartBeatTimer() {
       Coroutine::Sleep(random_timeout * 85);
     }
 
-    Log_info("HeartBeat Timeout %d for server: %d", random_timeout, site_id_);
+    // Log_info("HeartBeat Timeout %d for server: %d", random_timeout, site_id_);
 
     m.lock();
-    Log_info("CurrentRole: %d, votedFor: %d", currentRole == FOLLOWER, votedFor);
+    // Log_info("CurrentRole: %d, votedFor: %d", currentRole == FOLLOWER, votedFor);
     if (currentRole == FOLLOWER){
       currentTerm += 1;
       currentRole = CANDIDATE;
       votedFor = site_id_;
-      Log_info("Server %d is promoted to a candidate, term: %d", site_id_, currentTerm);
+      // Log_info("Server %d is promoted to a candidate, term: %d", site_id_, currentTerm);
     }
     m.unlock();
   };
@@ -317,12 +317,12 @@ void RaftServer:: ReplicateLog() {
                   // Log_info("Committing at Server: %d", site_id_);
                   sort(ackReceived.begin(), ackReceived.end());
 
-                  Log_info("ackReceived: ");
-                  for (int sz = 0; sz < ackReceived.size(); sz++) {
-                    std::cout << ackReceived[sz] << " ";
-                  }
+                  // Log_info("ackReceived: ");
+                  // for (int sz = 0; sz < ackReceived.size(); sz++) {
+                  //   std::cout << ackReceived[sz] << " ";
+                  // }
                   std:: cout << std::endl;
-                  Log_info("ackSize: %d, commitLength: %d, commandSize: %d", ackReceived.size(), commitIndex, commands.size());
+                  // Log_info("ackSize: %d, commitLength: %d, commandSize: %d", ackReceived.size(), commitIndex, commands.size());
                   if (ackReceived[ackReceived.size() - 3] > commitIndex) {
                     for (int i = commitIndex; i < ackReceived[ackReceived.size() - 3]; i++) {
                       app_next_(*commands[i]);
