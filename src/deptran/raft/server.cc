@@ -153,25 +153,22 @@ void RaftServer::LeaderElection() {
           if (votesReceived.size() == 3){
             currentLeader = site_id_;
             currentRole = LEADER;
-
-            Log_info("New Leader: %d", site_id_);
+            
+            Log_info("New Leader: %d, matchLength: %d", site_id_, matchLength[site_id_]);
             for (int fId = 0; fId < 5; fId++) {
               nextIndex[fId] = commands.size();
-              matchIndex[fId] = 0;
+              matchLength[fId] = 0;
             }
+
+            matchLength[site_id_] = terms.size();
           }
           
         } else if (retTerm > currentTerm) {
           currentTerm = retTerm;
           currentRole = FOLLOWER;
           votedFor = -1;
-          // Log_info("[retTerm > currentTerm] for server: %d", site_id_);
-        } else{
-          // Log_info("[vote not granted] for server: %d, by: %d", site_id_, svrId);
-        }
+        } 
         m.unlock();
-      } else {
-          // Log_info("SendRequestVote timeout happens for %d", site_id_);
       }  
     };
     Coroutine::CreateRun(callback);
@@ -190,11 +187,8 @@ void RaftServer::ElectionTimer() {
       Coroutine::Sleep(electionTimeout * 100);
     }
 
-    // Log_info("Election Timeout %d for server: %d", electionTimeout, site_id_);
-
     m.lock();
     if (currentRole == CANDIDATE) {
-      // Log_info("Server %d is still the candidate", site_id_);
       currentTerm += 1;
       votedFor = site_id_;
     }
@@ -240,6 +234,34 @@ void RaftServer::SendHeartBeat() {
   }
 }
 
+// void RaftServer::SendHeartBeat(int followerID) {
+//     auto callback = [followerID, this] () {        
+//       int svrId = serverId;
+//       uint64_t retTerm;
+//       bool_t isAlive;
+
+//       // Log_info("[SendHeartBeat] Callback for SvrID: %d, from: %d, cTerm: %d, leader?: %d", svrId, site_id_, currentTerm, currentRole == LEADER);
+
+//       uint64_t cTerm = currentTerm;
+//       auto event = commo()->SendHeartBeat(0, svrId, site_id_, cTerm, &retTerm, &isAlive);
+//       event->Wait(40000);
+//       if (event->status_ != Event::TIMEOUT) {
+//         m.lock();
+//         // Log_info("senderId: %d, retTerm: %d, currentTerm: %d", svrId, retTerm, currentTerm);
+//         if (isAlive == false && retTerm > cTerm) {
+//           currentTerm = retTerm;
+//           currentRole = FOLLOWER;
+//           votedFor = -1;
+//           // Log_info("Leader %d has now become a follower", site_id_);
+//         }
+//         m.unlock();
+//       }
+//       Coroutine::Sleep(150000);
+//     };
+//     Coroutine::CreateRun(callback);
+//     }
+// }
+
 void RaftServer:: HeartBeatTimer() {
   auto callback = [&] () {
     //auto random_timeout = getRandom(1000, 1500);
@@ -266,75 +288,97 @@ void RaftServer:: HeartBeatTimer() {
   Coroutine::CreateRun(callback);
 }
 
-void RaftServer:: ReplicateLog() {
-  Log_info("ReplicateLog for server: %d, startIndex: %d", site_id_, startIndex);
-  int reqId = startIndex;
+void RaftServer:: ReplicateLog(int followerID) {
+  auto callback = [followerID, this] () {
+    Log_info("replicate_log for followerId: %d", followerID);
+    while(currentRole == LEADER) {
+      Log_info("[Callback] followerID: %d is called from leader: %d", followerID, site_id_);
+      m.lock();
+      uint64_t retTerm, ackLength, cTerm = currentTerm;
+      bool_t success;
+      
+      uint64_t prefixLength = nextIndex[followerID];
+      uint64_t prevLogTerm = prefixLength > 0 ? terms[prefixLength - 1] : 0;
+      std::vector<shared_ptr<Marshallable>> suffix_commands(commands.begin() + prefixLength, commands.end());
+      std::vector<uint64_t> suffix_terms(terms.begin() + prefixLength, terms.end());
+      m.unlock();
 
-  for (uint64_t followerID = 0; followerID < 5; followerID++) {
-    if (followerID == site_id_) continue;
-
-    auto callback = [&] () {
-      uint64_t fID = followerID;
-
-      while(currentRole == LEADER && startIndex == reqId) {
-        uint64_t cTerm = currentTerm;
-        Log_info("Callback for ServerID: %d is called from leader: %d", fID, site_id_);
-        m.lock();
-        matchIndex[site_id_] = terms.size();
-        uint64_t prefixLength = nextIndex[fID];
-
-        std::vector<shared_ptr<Marshallable>> remainingCommands(commands.begin() + prefixLength, commands.end());
-        std::vector<uint64_t> remainingTerms(terms.begin() + prefixLength, terms.end());
+      Log_info("fId: %d, lId: %d, cTerm: %d", followerID, site_id_, cTerm);
+      auto event = commo()->SendAppendEntries(0, followerID, site_id_, cTerm, prefixLength, prevLogTerm, suffix_commands, suffix_terms, commitLength, &retTerm, &ackLength, &success);
+      event->Wait(30000);
+      // m.lock();
+      if (event->status_ != Event::TIMEOUT) {
+        Log_info("[VoteResponse] fId: %d, cTerm: %d, retTerm: %d", followerID, cTerm, retTerm);
         
-        uint64_t prevLogTerm = prefixLength > 0 ? terms[prefixLength - 1] : 0;
-        uint64_t retTerm, ackLength;
-        bool_t success;
-        m.unlock();
+        if (retTerm > cTerm) {
+          cTerm = currentTerm = retTerm;
+          currentRole = FOLLOWER;
+          votedFor = -1;
+          m.unlock();
+          break;
+        } 
 
-        auto event = commo()->SendAppendEntries(0, fID, site_id_, cTerm, prefixLength, prevLogTerm, remainingCommands, remainingTerms, commitIndex, &retTerm, &ackLength, &success);
-        event->Wait(30000);
-        if (event->status_ != Event::TIMEOUT) {
+        else if (retTerm < cTerm) {
+            Log_info("[Disconnected]retTerm < cTerm for %d", followerID);
+            matchLength[followerID] = 0;            
+        } 
+
+        else if (currentRole == LEADER){
           m.lock();
-          if (retTerm > cTerm) {
-            currentTerm = retTerm;
-            currentRole = FOLLOWER;
-            votedFor = -1;
-          } else if (retTerm == cTerm && currentRole == LEADER) {
-            matchIndex[fID] = ackLength;
-            if (success) {
-              Log_info("Successfully returned from fID: %d", fID);
-              nextIndex[fID] = ackLength;
+          if (success) {
+            Log_info("Successfully returned from fID: %d", followerID);
+            nextIndex[followerID] = ackLength;
+            matchLength[followerID] = ackLength;
 
-              std::vector<uint64_t>acksReceived;
-              for (int fsz = 0; fsz < 5; fsz++) {
-                if (matchIndex[fsz] > 0) acksReceived.push_back(matchIndex[fsz]);
-              }
-              Log_info("Size of acksReceived arr is: %d", acksReceived.size());
-              if (acksReceived.size() >= 3) {
-                sort(acksReceived.begin(), acksReceived.end());
-                Log_info("Committing at Server: %d, commitSize: %d", site_id_, acksReceived[acksReceived.size() - 3]);
+            std::vector<uint64_t>acksReceived;
+            std::cout << "MatchLength: ";
+            matchLength[site_id_] = terms.size();
+            for (int fsz = 0; fsz < 5; fsz++) {
+              std::cout << matchLength[fsz] << " ";
+              if (matchLength[fsz] > 0) acksReceived.push_back(matchLength[fsz]);
+            }
+            std::cout << std::endl;
+            Log_info("Size of acksReceived arr of leader: %d is: %d", site_id_, acksReceived.size());
+            if (acksReceived.size() >= 3) {
+              sort(acksReceived.begin(), acksReceived.end());
+              Log_info("Committing at Server: %d, commitSize: %d", site_id_, acksReceived[acksReceived.size() - 3]);
 
-                // Log_info("ackSize: %d, commitLength: %d, commandSize: %d", ackReceived.size(), commitIndex, commands.size());
-                if (acksReceived[acksReceived.size() - 3] > commitIndex) {
-                  for (int i = commitIndex; i < acksReceived[acksReceived.size() - 3]; i++) {
-                    app_next_(*commands[i]);
-                  }
-                  commitIndex = acksReceived[acksReceived.size() - 3];
+              int pos = -1;
+              for (int ind = 0; ind <= acksReceived.size() - 3; ind++) {
+                if (acksReceived[ind] > commitLength) {
+                  pos = ind;
+                  break;
                 }
               }
-              
-            } else {
-              if (nextIndex[fID]) nextIndex[fID]--;
+
+              if (pos != -1 && acksReceived[pos] > commitLength) {
+                for (int i = commitLength; i < acksReceived[pos]; i++) {
+                  app_next_(*commands[i]);
+                }
+                commitLength = acksReceived[pos];
+
+                m.unlock();
+              }
             }
+          }
+
+          else if (nextIndex[followerID] > 0){
+            nextIndex[followerID]--;
           }
           m.unlock();
         }
-        Coroutine::Sleep(30000);
+      } 
+      else {
+        Log_info("Timeout for %d, leader: %d", followerID, site_id_);
+        matchLength[followerID] = 0;
       }
-    };
-    Coroutine::CreateRun(callback);
-  }
+      // m.unlock();
+      Coroutine::Sleep(75000);
+    }
+  };
+  Coroutine::CreateRun(callback);
 }
+
 
 void RaftServer::Simulation() {
   Coroutine::CreateRun([this](){
@@ -347,22 +391,17 @@ void RaftServer::Simulation() {
         prevCTerm = currentTerm;
         ElectionTimer();
         LeaderElection();
-      } else if (currentRole == LEADER) {
-        if (prevLterm != currentTerm) {
-          prevLterm = currentTerm;
-          Coroutine::CreateRun([this]() {
-            SendHeartBeat();
-          });
-        } 
-        
-        if (startIndex != logCall) {
-          logCall = startIndex;
-          Coroutine::CreateRun([this]() {
-            ReplicateLog();
-          });
+      } else if (currentRole == LEADER && prevLterm != currentTerm) {
+        prevLterm = currentTerm;
+        Coroutine::CreateRun([this]() {
+          SendHeartBeat();
+        });
+        for (int followerId = 0; followerId < 5; followerId++) {
+            if (followerId == site_id_) continue;
+            ReplicateLog(followerId);
         }
       } 
-      Coroutine::Sleep(15000);  
+      Coroutine::Sleep(30000);  
     }
   });
 }
