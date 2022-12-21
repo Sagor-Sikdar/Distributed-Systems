@@ -47,7 +47,7 @@ void RaftServiceImpl::HandleRequestVote(const uint64_t& candidateId,
 
 void RaftServiceImpl::HandleAppendEntries(const uint64_t& leaderId,
                                           const uint64_t& leaderTerm,
-                                          const uint64_t& prefixLogLength,
+                                          const uint64_t& prefixLength,
                                           const uint64_t& prefixLogTerm,
                                           const std::vector<MarshallDeputy>& cmds,
                                           const std::vector<uint64_t>& terms,
@@ -59,8 +59,8 @@ void RaftServiceImpl::HandleAppendEntries(const uint64_t& leaderId,
   /* Your code here */
   svr_->m.lock();
   if (svr_->currentTerm > leaderTerm
-      || prefixLogLength > svr_->commands.size()
-      || (prefixLogLength > 0 && prefixLogTerm != svr_->terms[prefixLogLength - 1])) {
+      || prefixLength > svr_->commands.size()
+      || (prefixLength > 0 && prefixLogTerm != svr_->terms[prefixLength - 1])) {
     *retTerm = svr_->currentTerm;
     *matchedIndex = 0;
     *success = false;
@@ -72,18 +72,22 @@ void RaftServiceImpl::HandleAppendEntries(const uint64_t& leaderId,
       }
 
       *retTerm = svr_->currentTerm;
-      *matchedIndex = prefixLogLength + cmds.size();
+      *matchedIndex = prefixLength + cmds.size();
       *success = true;
 
-      while(svr_->commands.size() > prefixLogLength) {
-        svr_->commands.pop_back();
-        svr_->terms.pop_back();
+      if (cmds.size() > 0 && prefixLength < svr_->commands.size() && svr_->terms[prefixLength] != terms[0]){
+        while(svr_->commands.size() > prefixLength) {
+          svr_->commands.pop_back();
+          svr_->terms.pop_back();
+        }
       }
 
-      for (int i = 0; i < terms.size(); i++) {
-        std::shared_ptr<Marshallable> cmd = const_cast<MarshallDeputy&>(cmds[i]).sp_data_;
-        svr_->commands.push_back(cmd);
-        svr_->terms.push_back(terms[i]);
+      if (prefixLength + cmds.size() > svr_->commands.size()) {
+        for (int i = svr_->commands.size() - prefixLength; i < terms.size(); i++) {
+          std::shared_ptr<Marshallable> cmd = const_cast<MarshallDeputy&>(cmds[i]).sp_data_;
+          svr_->commands.push_back(cmd);
+          svr_->terms.push_back(terms[i]);
+        }
       }
 
       if (leaderCommitIndex > svr_->commitLength) {
@@ -91,6 +95,7 @@ void RaftServiceImpl::HandleAppendEntries(const uint64_t& leaderId,
           svr_->app_next_(*svr_->commands[i]);
         }
         svr_->commitLength = leaderCommitIndex;
+        Log_info("[HandleAppendEntries_Log] CommitLength for Server: %d is now %d", svr_->site_id_, svr_->commitLength);
       }
   }
   Log_info("[HandleAppendEntries] server: %d, retTerm: %d, matchIndex: %d, success: %d", svr_->site_id_, *retTerm, *matchedIndex, *success);
