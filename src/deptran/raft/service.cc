@@ -86,13 +86,14 @@ void RaftServiceImpl::HandleAppendEntries(const uint64_t& leaderId,
         svr_->terms.push_back(terms[i]);
       }
 
-      if (leaderCommitIndex > svr_->commitIndex) {
-        for (int i = svr_->commitIndex; i < leaderCommitIndex; i++) {
+      if (leaderCommitIndex > svr_->commitLength) {
+        for (int i = svr_->commitLength; i < leaderCommitIndex; i++) {
           svr_->app_next_(*svr_->commands[i]);
         }
-        svr_->commitIndex = leaderCommitIndex;
+        svr_->commitLength = leaderCommitIndex;
       }
   }
+  Log_info("[HandleAppendEntries] server: %d, retTerm: %d, matchIndex: %d, success: %d", svr_->site_id_, *retTerm, *matchedIndex, *success);
   svr_->m.unlock();
   defer->reply();
 }

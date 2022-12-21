@@ -18,7 +18,7 @@ class RaftServer : public TxLogServer {
   std::vector<shared_ptr<Marshallable>> commands;
   std::vector<uint64_t> terms;
 
-  uint64_t commitIndex;
+  uint64_t commitLength;
   std::chrono::time_point<std::chrono::steady_clock> t_start = std::chrono::steady_clock::now();
   std::chrono::time_point<std::chrono::steady_clock> election_start_time = std::chrono::steady_clock::now();
   int electionTimeout;
@@ -28,8 +28,7 @@ class RaftServer : public TxLogServer {
   uint64_t currentLeader;
   std::unordered_set<uint64_t> votesReceived;
   std::unordered_map<uint64_t, uint64_t> nextIndex;
-  std::unordered_map<uint64_t, uint64_t> matchIndex;
-  // std::vector<uint64_t> ackReceived;
+  std::unordered_map<uint64_t, uint64_t> matchLength;
   std::recursive_mutex m;
 
   /* Your functions here */
@@ -39,7 +38,7 @@ class RaftServer : public TxLogServer {
   void HeartBeatTimer();
   void ElectionTimer();
   void Simulation();
-  void ReplicateLog();
+  void ReplicateLog(int followerId);
 
   /* do not modify this class below here */
 
