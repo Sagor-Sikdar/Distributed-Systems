@@ -23,24 +23,20 @@ void RaftServiceImpl::HandleRequestVote(const uint64_t& candidateId,
   svr_->m.lock();
   
   bool validTerm = (candidateTerm > svr_->currentTerm) || (candidateTerm == svr_->currentTerm && (svr_->votedFor == -1 || svr_->votedFor == candidateId));
-  bool UpdatedLog = true;;
-  if (svr_->terms.size() > 0) {
-    int logSize = svr_->terms.size();
-    int lastTerm = svr_->terms[logSize - 1];
-    UpdatedLog = (candidateLogTerm > lastTerm) || (candidateLogTerm == lastTerm && candidateLogLength >= logSize); 
-  }  
   
-  if (validTerm && UpdatedLog) {
-    *retTerm = svr_->currentTerm = candidateTerm;
+  int logSize = svr_->terms.size();
+  bool updatedLog = logSize == 0 || ((candidateLogTerm > svr_->terms[logSize - 1]) || (candidateLogTerm == svr_->terms[logSize - 1] && candidateLogLength >= logSize)); 
+
+  if (validTerm && updatedLog) {
+    svr_->currentTerm = candidateTerm;
     svr_->currentRole = FOLLOWER;
     svr_->votedFor = candidateId;
     *vote_granted = true;
     svr_->t_start = std::chrono::steady_clock::now();
   }  else {
-    *retTerm = svr_->currentTerm;
     *vote_granted = false;
   }
-  
+  *retTerm = svr_->currentTerm;
   svr_->m.unlock();
   defer->reply();
 }
@@ -57,48 +53,55 @@ void RaftServiceImpl::HandleAppendEntries(const uint64_t& leaderId,
                                           bool_t *success,
                                           rrr::DeferredReply* defer) {
   /* Your code here */
+  // Log_info("HandleAppendEntries called.. Received: %d, Sent: %d", svr_->site_id_, leaderId);
   svr_->m.lock();
-  if (svr_->currentTerm > leaderTerm
-      || prefixLength > svr_->commands.size()
-      || (prefixLength > 0 && prefixLogTerm != svr_->terms[prefixLength - 1])) {
-    *retTerm = svr_->currentTerm;
-    *matchedIndex = 0;
+  if (svr_->currentTerm > leaderTerm) {
+    *matchedIndex = -1;
     *success = false;
   } else {
-      if (svr_->currentTerm < leaderTerm) {
+      svr_->currentTerm = leaderTerm;
+      svr_->currentRole = FOLLOWER;
+      svr_->currentLeader = leaderId;
+      svr_->t_start = std::chrono::steady_clock::now();
+
+      if (prefixLength > svr_->commands.size()
+              || (prefixLength > 0 && prefixLogTerm != svr_->terms[prefixLength - 1])) {
+      *matchedIndex = 0;
+      *success = false;
+      } else {
+        if (svr_->currentTerm < leaderTerm) svr_->votedFor = -1;
+        
         svr_->currentTerm = leaderTerm;
-        svr_->currentRole = FOLLOWER;
-        svr_->votedFor = -1;
-      }
+        *matchedIndex = prefixLength + cmds.size();
+        *success = true;
 
-      *retTerm = svr_->currentTerm;
-      *matchedIndex = prefixLength + cmds.size();
-      *success = true;
-
-      if (cmds.size() > 0 && prefixLength < svr_->commands.size() && svr_->terms[prefixLength] != terms[0]){
-        while(svr_->commands.size() > prefixLength) {
-          svr_->commands.pop_back();
-          svr_->terms.pop_back();
+        if (cmds.size() > 0 && prefixLength < svr_->commands.size() && svr_->terms[prefixLength] != terms[0]){
+          while(svr_->commands.size() > prefixLength) {
+            svr_->commands.pop_back();
+            svr_->terms.pop_back();
+          }
         }
-      }
 
-      if (prefixLength + cmds.size() > svr_->commands.size()) {
-        for (int i = svr_->commands.size() - prefixLength; i < terms.size(); i++) {
-          std::shared_ptr<Marshallable> cmd = const_cast<MarshallDeputy&>(cmds[i]).sp_data_;
-          svr_->commands.push_back(cmd);
-          svr_->terms.push_back(terms[i]);
+        if (prefixLength + cmds.size() > svr_->commands.size()) {
+          for (int i = svr_->commands.size() - prefixLength; i < terms.size(); i++) {
+            std::shared_ptr<Marshallable> cmd = const_cast<MarshallDeputy&>(cmds[i]).sp_data_;
+            svr_->commands.push_back(cmd);
+            svr_->terms.push_back(terms[i]);
+          }
         }
-      }
 
-      if (leaderCommitIndex > svr_->commitLength) {
-        for (int i = svr_->commitLength; i < leaderCommitIndex; i++) {
-          svr_->app_next_(*svr_->commands[i]);
+        // Log_info("[Follower: %d] leaderCommitIndex %d, svr_->commitLength: %d ", svr_->site_id_, leaderCommitIndex, svr_->commitLength);
+        if (leaderCommitIndex > svr_->commitLength) {
+          for (int i = svr_->commitLength; i < leaderCommitIndex; i++) {
+            svr_->app_next_(*svr_->commands[i]);
+            // Log_info("[Follower: %d] app_next_ called for index: %d", svr_->site_id_, i);
+          }
+          svr_->commitLength = leaderCommitIndex;
+          // Log_info("[HandleAppendEntries_Log] CommitLength for Server: %d is now %d", svr_->site_id_, svr_->commitLength);
         }
-        svr_->commitLength = leaderCommitIndex;
-        Log_info("[HandleAppendEntries_Log] CommitLength for Server: %d is now %d", svr_->site_id_, svr_->commitLength);
       }
   }
-  Log_info("[HandleAppendEntries] server: %d, retTerm: %d, matchIndex: %d, success: %d", svr_->site_id_, *retTerm, *matchedIndex, *success);
+  *retTerm = svr_->currentTerm;
   svr_->m.unlock();
   defer->reply();
 }
