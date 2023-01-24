@@ -57,7 +57,6 @@ class RaftServer : public TxLogServer {
   void SyncRpcExample();
   void Disconnect(const bool disconnect = true);
   void Reconnect() {
-    Log_info("ServerID: %d is reconnected.", site_id_);
     Disconnect(false);
   }
   bool IsDisconnected();
