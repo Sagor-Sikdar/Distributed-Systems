@@ -29,7 +29,6 @@ void RaftServer::Setup() {
      framework, this function could be called after a RPC handler is triggered. 
      Your code should be aware of that. This function is always called in the 
      same OS thread as the RPC handlers. */
-    Log_info("ServerId: %d has started", site_id_);
     Simulation();
 }
 
@@ -85,7 +84,6 @@ void RaftServer::SyncRpcExample() {
 /* Do not modify any code below here */
 
 void RaftServer::Disconnect(const bool disconnect) {
-  Log_info("Disconnecting %d", site_id_);
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   verify(disconnected_ != disconnect);
   // global map of rpc_par_proxies_ values accessed by partition then by site
@@ -111,7 +109,6 @@ void RaftServer::Disconnect(const bool disconnect) {
     verify(_proxies[partition_id_][loc_id_].size() == 0);
     verify(c->rpc_par_proxies_.size() == sz);
   }
-  Log_info("disconnected");
   disconnected_ = disconnect;
 }
 
