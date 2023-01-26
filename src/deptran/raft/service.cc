@@ -136,7 +136,7 @@ void RaftServiceImpl::HandleHelloRpc(const string& req,
                                      rrr::DeferredReply* defer) {
   /* Your code here */
   Log_info("receive an rpc: %s from %d", req.c_str(), svr_->site_id_);
-  *res = "hello";
+  *res = "world";
   defer->reply();
 }
 
