@@ -54,10 +54,10 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
 
 void RaftServer::GetState(bool *is_leader, uint64_t *term) {
   /* Your code here. This function can be called from another OS thread. */
-  m.lock();
-  *is_leader = (currentRole == LEADER);
+  
+  timeout_val = 0;
   *term = currentTerm;
-  m.unlock();
+  *is_leader = currentRole == LEADER && timeout_val < 4;
 }
 
 void RaftServer::SyncRpcExample() {
@@ -67,16 +67,14 @@ void RaftServer::SyncRpcExample() {
      to send/recv a Marshallable object over RPC. */
   Coroutine::CreateRun([this](){
     string res;
-    uint64_t ret;
-    bool_t visited;
     auto event = commo()->SendString(0, /* partition id is always 0 for lab1 */
-                                     2, "example_msg", &res);
+                                     2, "hello", &res);
 
     event->Wait(1000000); //timeout after 1000000us=1s
     if (event->status_ == Event::TIMEOUT) {
       Log_info("timeout happens");
     } else {
-      Log_info("[SyncRpcExample] rpc response is: %d", ret); 
+      Log_info("rpc response is: %s", res.c_str());
     }
   });
 }
@@ -147,6 +145,7 @@ void RaftServer::LeaderElection() {
           if (votesReceived.size() == 3){
             currentLeader = site_id_;
             currentRole = LEADER;
+            timeout_val = 0;
             
             // Log_info("New Leader: %d, matchLength: %d, commitLength: %d", site_id_, matchLength[site_id_], commitLength);
             for (int fId = 0; fId < 5; fId++) {
@@ -237,6 +236,7 @@ void RaftServer:: ReplicateLog(int followerID) {
       if (event->status_ != Event::TIMEOUT) {
         m.lock();
         // Log_info("[VoteResponse] fId: %d, cTerm: %d, retTerm: %d", followerID, cTerm, retTerm);
+        timeout_val = 0;
         if (success == false && ackLength == -1) {
           currentTerm = retTerm;
           currentRole = FOLLOWER;
@@ -296,6 +296,7 @@ void RaftServer:: ReplicateLog(int followerID) {
       else {
         // Log_info("Timeout for %d, leader: %d", followerID, site_id_);
         matchLength[followerID] = 0;
+        timeout_val = timeout_val + 1 < 4 ? timeout_val + 1 : 4;
       }
       m.unlock();
       Coroutine::Sleep(100000);

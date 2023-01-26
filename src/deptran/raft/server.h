@@ -26,6 +26,7 @@ class RaftServer : public TxLogServer {
 
   State currentRole;
   uint64_t currentLeader;
+  uint64_t timeout_val;
   std::unordered_set<uint64_t> votesReceived;
   std::unordered_map<uint64_t, uint64_t> nextIndex;
   std::unordered_map<uint64_t, uint64_t> matchLength;
