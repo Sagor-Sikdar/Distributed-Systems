@@ -32,6 +32,28 @@ int KvServer::Put(const uint64_t& oid,
   s->data_.push_back(v);
   */
   /* your code here */
+  shared_ptr<MultiStringMarshallable> data = make_shared<MultiStringMarshallable>();
+  data->data_.push_back(to_string(oid));
+  data->data_.push_back("put");
+  data->data_.push_back(k);
+  data->data_.push_back(v);
+
+  auto event = Reactor::CreateSpEvent<IntEvent>();
+  eventStorage[to_string(oid)] = event;
+
+  uint64_t index, term;
+
+  auto cmd = std::static_pointer_cast<Marshallable>(data);
+  
+  if (!GetRaftServer().Start(cmd, &index, &term)) {
+    return KV_NOTLEADER;
+  }
+  
+  event->Wait(30000000);
+  if (event->status_ == Event::TIMEOUT) {
+    return KV_TIMEOUT;
+  } 
+
   return KV_SUCCESS;
 }
 
@@ -39,6 +61,28 @@ int KvServer::Append(const uint64_t& oid,
                      const string& k,
                      const string& v) {
   /* your code here */
+  shared_ptr<MultiStringMarshallable> data = make_shared<MultiStringMarshallable>();
+  data->data_.push_back(to_string(oid));
+  data->data_.push_back("append");
+  data->data_.push_back(k);
+  data->data_.push_back(v);
+
+  auto event = Reactor::CreateSpEvent<IntEvent>();
+  eventStorage[to_string(oid)] = event;
+
+  uint64_t index, term;
+
+  auto cmd = std::dynamic_pointer_cast<Marshallable>(data);
+  if (!GetRaftServer().Start(cmd, &index, &term)) {
+    return KV_NOTLEADER;
+  }
+
+  event->Wait(30000000);
+  if (event->status_ == Event::TIMEOUT) {
+    std::cout << "[Append Timeout] Key: " << k << ", Value: " << v << ", database: " << database[k] << std::endl;
+    return KV_TIMEOUT;
+  } 
+  
   return KV_SUCCESS;
 }
 
@@ -46,12 +90,44 @@ int KvServer::Get(const uint64_t& oid,
                   const string& k,
                   string* v) {
   /* your code here */
+  auto data = make_shared<MultiStringMarshallable>();
+  data->data_.push_back(to_string(oid));
+  data->data_.push_back("get");
+  data->data_.push_back(k);
+  auto event = Reactor::CreateSpEvent<IntEvent>();
+  eventStorage[to_string(oid)] = event;
+
+
+  uint64_t index, term;
+
+  auto cmd = std::dynamic_pointer_cast<Marshallable>(data);
+  if (!GetRaftServer().Start(cmd, &index, &term)) {
+    return KV_NOTLEADER;
+  }
+
+  event->Wait(30000000);
+  if (event->status_ == Event::TIMEOUT) {
+    return KV_TIMEOUT;
+  } 
+  
+  *v=database[k];
   return KV_SUCCESS;
 }
 
 void KvServer::OnNextCommand(Marshallable& m) {
   auto v = (MultiStringMarshallable*)(&m);
   /* your code here */
+  std::string temp = v->data_[0];
+  if(eventStorage.find(temp) != eventStorage.end() && eventStorage[temp]->status_ != Event::TIMEOUT){
+    eventStorage[temp]->Set(1);
+  }
+
+  if (v->data_[1][0] == 'p') {
+    database[v->data_[2]] = v->data_[3];
+  }
+  else if (v->data_[1][0] == 'a') {
+    database[v->data_[2]].append(v->data_[3]);
+  }
 }
 
 shared_ptr<KvClient> KvServer::CreateClient() {

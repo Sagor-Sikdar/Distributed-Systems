@@ -37,7 +37,7 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
                        uint64_t *term) {
   /* Your code here. This function can be called from another OS thread. */
   m.lock();
-  if (currentRole == LEADER) {
+  if (currentRole == LEADER && timeout_val < 4) {
     *term = currentTerm;
     commands.push_back(cmd);
     terms.push_back(currentTerm);
@@ -54,8 +54,6 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
 
 void RaftServer::GetState(bool *is_leader, uint64_t *term) {
   /* Your code here. This function can be called from another OS thread. */
-  
-  timeout_val = 0;
   *term = currentTerm;
   *is_leader = currentRole == LEADER && timeout_val < 4;
 }

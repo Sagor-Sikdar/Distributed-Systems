@@ -49,6 +49,8 @@ class KvServer {
   uint32_t cli_cnt_ = 0;
 
   /* add your variables here */
+  std::unordered_map<std::string, std::string> database;
+  std::unordered_map<std::string, std::shared_ptr<IntEvent>> eventStorage;
 
   RaftServer& GetRaftServer() {
     auto p = dynamic_pointer_cast<RaftServer>(sp_log_svr_);
