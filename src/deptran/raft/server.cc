@@ -121,17 +121,18 @@ void RaftServer::LeaderElection() {
   votesReceived.clear();
   votesReceived.insert(site_id_);
   m.unlock();
+  int parId = site_id_/5;
   for (int serverId = 0; serverId < 5 && currentRole == CANDIDATE; serverId++){
-    if (serverId == site_id_) { continue;}
+    if (parId * 5 + serverId == site_id_) { continue;}
 
     auto callback = [&] () {
-      uint64_t retTerm, cTerm = currentTerm, candidateId = site_id_, svrId = serverId;
+      uint64_t retTerm, cTerm = currentTerm, candidateId = site_id_, svrId = parId * 5 + serverId;
       bool_t vote_granted;
 
       // Log_info("[SendRequestVote] (cId, svrId, term) = (%d, %d, %d)\n", candidateId, serverId, currentTerm);
       uint64_t logLength = terms.size();
       uint64_t logTerm = logLength > 0 ? terms[logLength - 1] : 0;  
-      auto event = commo()->SendRequestVote(0, svrId, candidateId, cTerm, logTerm, logLength, &retTerm, &vote_granted);   
+      auto event = commo()->SendRequestVote(parId, svrId, candidateId, cTerm, logTerm, logLength, &retTerm, &vote_granted);   
       
       event->Wait(40000); //timeout after 1000000us=1s
       if (event->status_ != Event::TIMEOUT) {          
@@ -222,14 +223,14 @@ void RaftServer:: ReplicateLog(int followerID) {
       m.lock();
       uint64_t retTerm, ackLength, cTerm = currentTerm;
       bool_t success;
-      
+      uint64_t parId = site_id_/5;
       uint64_t prefixLength = nextIndex[followerID];
       uint64_t prevLogTerm = prefixLength > 0 ? terms[prefixLength - 1] : 0;
       std::vector<shared_ptr<Marshallable>> suffix_commands(commands.begin() + prefixLength, commands.end());
       std::vector<uint64_t> suffix_terms(terms.begin() + prefixLength, terms.end());
       m.unlock();
 
-      auto event = commo()->SendAppendEntries(0, followerID, site_id_, cTerm, prefixLength, prevLogTerm, suffix_commands, suffix_terms, commitLength, &retTerm, &ackLength, &success);
+      auto event = commo()->SendAppendEntries(parId, followerID + parId * 5, site_id_, cTerm, prefixLength, prevLogTerm, suffix_commands, suffix_terms, commitLength, &retTerm, &ackLength, &success);
       event->Wait(40000);
       if (event->status_ != Event::TIMEOUT) {
         m.lock();
