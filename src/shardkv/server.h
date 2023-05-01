@@ -27,6 +27,8 @@ class ShardKvServer {
   }
 
   int64_t GetNextOpId();
+  std::unordered_map<std::string, std::string> database;
+  std::unordered_map<std::string, std::shared_ptr<IntEvent>> eventStorage;
 
   int Put(const uint64_t& op_id,
           const string& k,
