@@ -45,7 +45,7 @@ std::recursive_mutex lck;
   
   shared_ptr<TxLogServer> sp_log_svr_{}; 
   const uint64_t SM_TIMEOUT = 10000000; // 10s
-  map<uint32_t, ShardConfig> configs_{{0, ShardConfig()}}; 
+  map<uint32_t, ShardConfig> configs_{}; 
 
   // add your own variables here if needed 
 
