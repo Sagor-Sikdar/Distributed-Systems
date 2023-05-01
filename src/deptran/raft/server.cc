@@ -37,7 +37,7 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
                        uint64_t *term) {
   /* Your code here. This function can be called from another OS thread. */
   m.lock();
-  if (currentRole == LEADER && timeout_val < 4) {
+  if (currentRole == LEADER) {
     *term = currentTerm;
     commands.push_back(cmd);
     terms.push_back(currentTerm);
@@ -55,7 +55,7 @@ bool RaftServer::Start(shared_ptr<Marshallable> &cmd,
 void RaftServer::GetState(bool *is_leader, uint64_t *term) {
   /* Your code here. This function can be called from another OS thread. */
   *term = currentTerm;
-  *is_leader = currentRole == LEADER && timeout_val < 4;
+  *is_leader = currentRole == LEADER;
 }
 
 void RaftServer::SyncRpcExample() {
@@ -126,7 +126,7 @@ void RaftServer::LeaderElection() {
     if (parId * 5 + serverId == site_id_) { continue;}
 
     auto callback = [&] () {
-      uint64_t retTerm, cTerm = currentTerm, candidateId = site_id_, svrId = parId * 5 + serverId;
+      uint64_t retTerm, cTerm = currentTerm, candidateId = site_id_, serverStartIndex = parId * 5, svrId = serverStartIndex + serverId;
       bool_t vote_granted;
 
       // Log_info("[SendRequestVote] (cId, svrId, term) = (%d, %d, %d)\n", candidateId, serverId, currentTerm);
@@ -144,10 +144,9 @@ void RaftServer::LeaderElection() {
           if (votesReceived.size() == 3){
             currentLeader = site_id_;
             currentRole = LEADER;
-            timeout_val = 0;
             
             // Log_info("New Leader: %d, matchLength: %d, commitLength: %d", site_id_, matchLength[site_id_], commitLength);
-            for (int fId = 0; fId < 5; fId++) {
+            for (int fId = serverStartIndex; fId < serverStartIndex + 5; fId++) {
               if (fId == site_id_) continue;
               nextIndex[fId] = commands.size();
               matchLength[fId] = 0;
@@ -224,18 +223,19 @@ void RaftServer:: ReplicateLog(int followerID) {
       uint64_t retTerm, ackLength, cTerm = currentTerm;
       bool_t success;
       uint64_t parId = site_id_/5;
+      uint64_t serverStartIndex = parId * 5;
+      
       uint64_t prefixLength = nextIndex[followerID];
       uint64_t prevLogTerm = prefixLength > 0 ? terms[prefixLength - 1] : 0;
       std::vector<shared_ptr<Marshallable>> suffix_commands(commands.begin() + prefixLength, commands.end());
       std::vector<uint64_t> suffix_terms(terms.begin() + prefixLength, terms.end());
       m.unlock();
 
-      auto event = commo()->SendAppendEntries(parId, followerID + parId * 5, site_id_, cTerm, prefixLength, prevLogTerm, suffix_commands, suffix_terms, commitLength, &retTerm, &ackLength, &success);
+      auto event = commo()->SendAppendEntries(parId, followerID, site_id_, cTerm, prefixLength, prevLogTerm, suffix_commands, suffix_terms, commitLength, &retTerm, &ackLength, &success);
       event->Wait(40000);
       if (event->status_ != Event::TIMEOUT) {
         m.lock();
         // Log_info("[VoteResponse] fId: %d, cTerm: %d, retTerm: %d", followerID, cTerm, retTerm);
-        timeout_val = 0;
         if (success == false && ackLength == -1) {
           currentTerm = retTerm;
           currentRole = FOLLOWER;
@@ -247,15 +247,13 @@ void RaftServer:: ReplicateLog(int followerID) {
 
         else if (currentRole == LEADER){
           if (success) {
-            // Log_info("%d responded successfully", followerID);
             nextIndex[followerID] = ackLength;
-
             matchLength[followerID] = ackLength;
 
             std::vector<uint64_t>acksReceived;
             // std::cout << "MatchLength: ";
             matchLength[site_id_] = terms.size();
-            for (int fsz = 0; fsz < 5; fsz++) {
+            for (int fsz = serverStartIndex; fsz < serverStartIndex + 5; fsz++) {
               // std::cout << matchLength[fsz] << " ";
               if (matchLength[fsz] > 0) acksReceived.push_back(matchLength[fsz]);
             }
@@ -295,7 +293,6 @@ void RaftServer:: ReplicateLog(int followerID) {
       else {
         // Log_info("Timeout for %d, leader: %d", followerID, site_id_);
         matchLength[followerID] = 0;
-        timeout_val = timeout_val + 1 < 4 ? timeout_val + 1 : 4;
       }
       m.unlock();
       Coroutine::Sleep(100000);
