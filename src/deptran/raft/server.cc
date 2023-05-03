@@ -179,7 +179,7 @@ void RaftServer::ElectionTimer() {
     m.unlock();
 
     while(currentRole == CANDIDATE && std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - election_start_time).count() < std::chrono::milliseconds(electionTimeout).count()) {
-      Coroutine::Sleep(electionTimeout * 100);
+      Coroutine::Sleep(electionTimeout * 150);
     }
 
     m.lock();
@@ -287,7 +287,7 @@ void RaftServer:: ReplicateLog(int followerID) {
             }
           } else if (nextIndex[followerID] > 0){
             nextIndex[followerID]--;
-            Coroutine::Sleep(15000);
+            Coroutine::Sleep(30000);
             m.unlock();
             continue;
           }
@@ -299,7 +299,7 @@ void RaftServer:: ReplicateLog(int followerID) {
         timeout_val = timeout_val + 1 < 4 ? timeout_val + 1 : 4;
       }
       m.unlock();
-      Coroutine::Sleep(100000);
+      Coroutine::Sleep(125000);
     }
   };
   Coroutine::CreateRun(callback);
@@ -319,7 +319,7 @@ void RaftServer::Simulation() {
         ElectionTimer();
         LeaderElection();
       } 
-      Coroutine::Sleep(30000);  
+      Coroutine::Sleep(40000);  
     }
   });
 }
