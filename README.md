@@ -121,7 +121,10 @@ sudo pip3 install -r requirements.txt
 
 For next steps, checkout the guidelines in the [course web page](http://mpaxos.com/teaching/ds/22fa/labs.html).
 
-## Author and acknowledgements
+## Previous Commit Author Information
+Please note that some commits in this repository are authored by Sagor054, which is an alternate GitHub account previously used by the project owner, Sagor-Sikdar. This account is no longer maintained, and all future contributions will be made from the current account. The ownership and authorship of the code remain with Sagor-Sikdar.
+
+## Acknowledgements
 Author: Shuai Mu, Julie Lee (lab 1)
 
 Many of the lab structure and the guideline text are taken from MIT 6.824. The code is based on the acedemic prototypes of previous research works including Rococo/Janus/Snow/DRP/Rolis/DepFast.
